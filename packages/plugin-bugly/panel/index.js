@@ -73,7 +73,7 @@ Editor.Panel.extend({
                 },
                 // 更新游戏包名
                 updateGamePackageName() {
-                    let projectPath = Editor.projectInfo.path;
+                    let projectPath = Editor.Project.path;
                     let buildCfg = PATH.join(projectPath, "settings/builder.json");
                     if (!FS.existsSync(buildCfg)) {
                         this.gamePackage = null;
@@ -117,7 +117,7 @@ Editor.Panel.extend({
                     }
 
                     // 替换code值
-                    let projectPath = Editor.projectInfo.path;
+                    let projectPath = Editor.Project.path;
                     let buildCfg = PATH.join(projectPath, "local/builder.json");
                     if (!FS.existsSync(buildCfg)) {
                         this._addLog("发现没有构建项目, 使用前请先构建项目!");
@@ -187,7 +187,7 @@ Editor.Panel.extend({
                     }
 
 
-                    let projectPath = Editor.projectInfo.path;
+                    let projectPath = Editor.Project.path;
 
                     // 检测so文件
                     let buildCfg = PATH.join(projectPath, "local/builder.json");
@@ -327,18 +327,18 @@ Editor.Panel.extend({
                         return;
                     }
 
-                    let projectPath = Editor.projectInfo.path;
+                    let projectPath = Editor.Project.path;
                     let buildCfg = PATH.join(projectPath, "local/builder.json");
                     if (!FS.existsSync(buildCfg)) {
                         this._addLog("发现没有构建项目, 使用前请先构建项目!");
                         return;
                     }
 
+
                     let data = FS.readFileSync(buildCfg, 'utf-8');
                     let buildData = JSON.parse(data);
-                    let buildFullDir = buildData.buildPath;
-                    if (buildData.buildPath[0] === '.')
-                        buildFullDir = PATH.join(projectPath, buildData.buildPath);
+                    let buildFullDir = PATH.join(projectPath, buildData.buildPath);
+
 
                     let version = '1.4.3';
                     let buglyResPath = PATH.join(projectPath, 'packages/plugin-bugly/bugly/' + version);
@@ -374,7 +374,7 @@ Editor.Panel.extend({
                         let desJarDir = PATH.join(projAndroidStudio, "app/libs/");
                         if (!FS.existsSync(desJarDir)) {
                             FS.mkdirSync(desJarDir);
-                            let str = "未发现目录: " + desJarDir + ",已经自动生成!";
+                            let str = "新建工程libs目录!";
                             window.plugin._addLog(str);
                         }
 
@@ -414,27 +414,27 @@ Editor.Panel.extend({
                     /* 将
                         BuglySDK\Android\libs\armeabi-v7a文件夹
                        拷贝到
-                        jsb-default\frameworks\runtime-src\proj.android-studio\app\jni\prebuilt，
-                    *  如果prebuilt文件夹不存在就创建一下，如果还需要其他ABI就拷贝相应的，比如常用于模拟器的x86。
+                        jsb-default\frameworks\runtime-src\proj.android-studio\app\libs，
+                    *  如果libs文件夹不存在就创建一下，如果还需要其他ABI就拷贝相应的，比如常用于模拟器的x86。
                     * */
 
                     function step2() {
                         window.plugin._addLog("copy so ..");
-                        let prebuilt = PATH.join(buildFullDir,
+                        let libs = PATH.join(buildFullDir,
                             "jsb-" + buildData.template +
-                            "/frameworks/runtime-src/proj.android-studio/app/jni/prebuilt");
+                            "/frameworks/runtime-src/proj.android-studio/app/libs");
 
-                        if (!FS.existsSync(prebuilt)) {
-                            FS.mkdirSync(prebuilt);
-                            window.plugin._addLog("创建 prebuilt 文件夹");
+                        if (!FS.existsSync(libs)) {
+                            FS.mkdirSync(libs);
+                            window.plugin._addLog("创建 libs 文件夹");
                         }
 
-                        let prebuiltPath = PATH.join(buglyResPath, "prebuilt");
-                        if (!FS.existsSync(prebuiltPath)) {
+                        let libsPath = PATH.join(buglyResPath, "prebuilt");
+                        if (!FS.existsSync(libsPath)) {
                             window.plugin._addLog("没有发现插件的prebuilt文件");
                             return;
                         }
-                        fse.copy(prebuiltPath, prebuilt, function (err) {
+                        fse.copy(libsPath, libs, function (err) {
                             if (err) {
                                 window.plugin._addLog("copy so failed!");
                                 console.log(err);
@@ -462,7 +462,7 @@ Editor.Panel.extend({
                         }
 
                         let classPath = PATH.join(buildFullDir,
-                            "jsb-" + buildData.template + "/frameworks/runtime-src/Classes/bugly");
+                            "jsb-" + buildData.template + "/frameworks/runtime-src/Classes/BuglyCocosPlugin");
                         if (!FS.existsSync(classPath)) {
                             FS.mkdirSync(classPath);
                         }
@@ -492,26 +492,11 @@ Editor.Panel.extend({
                         }
 
                         let data = FS.readFileSync(mkFile, 'utf-8');
-                        // 增加bugly.so模块
-                        let buglySoFlag =
-                            "LOCAL_PATH := $(call my-dir)\n" +
-                            "# --- bugly: 引用 libBugly.so ---\n" +
-                            "include $(CLEAR_VARS)\n" +
-                            "LOCAL_MODULE := bugly_native_prebuilt\n" +
-                            "LOCAL_SRC_FILES := prebuilt/$(TARGET_ARCH_ABI)/libBugly.so\n" +
-                            "include $(PREBUILT_SHARED_LIBRARY)\n" +
-                            "# --- bugly: end ---";
-                        if (data.indexOf(buglySoFlag) === -1) {
-                            data = data.replace("LOCAL_PATH := $(call my-dir)", buglySoFlag);
-                            window.plugin._addLog("[Android.mk] 增加libBugly.so引用");
-                        } else {
-                            window.plugin._addLog("[Android.mk] 已经增加libBugly.so引用");
-                        }
 
                         // 增加CrashReport.mm编译文件
                         let AppDelegateFlag =
                             "\t\t\t\t   ../../../Classes/AppDelegate.cpp \\\n" +
-                            "\t\t\t\t   ../../../Classes/bugly/CrashReport.mm \\\n";
+                            "\t\t\t\t   ../../../Classes/BuglyCocosPlugin/CrashReport.mm \\\n";
                         if (data.indexOf(AppDelegateFlag) === -1) {
                             data = data.replace("\t\t\t\t   ../../../Classes/AppDelegate.cpp \\\n", AppDelegateFlag);
                             window.plugin._addLog("[Android.mk] 增加CrashReport.mm引用");
@@ -551,7 +536,7 @@ Editor.Panel.extend({
                         let buglyHeadFlag =
                             "// bugly\n" +
                             "#if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID || CC_TARGET_PLATFORM == CC_PLATFORM_IOS)\n" +
-                            "#include \"bugly/CrashReport.h\"\n" +
+                            "#include \"BuglyCocosPlugin/CrashReport.h\"\n" +
                             "#endif\n" +
                             "USING_NS_CC;";
                         if (data.indexOf(buglyHeadFlag) === -1) {
@@ -579,14 +564,14 @@ Editor.Panel.extend({
                         }
 
                         // js异常上报
-                        let jsReportFlag = "setExceptionCallback([](const char* location, const char* message, const char* stack){\n" +
+                        let jsReportFlag = "setExceptionCallback([](const char *location, const char *message, const char *stack){\n" +
                             "        // Send exception information to server like Tencent Bugly.\n" +
                             "        #if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID || CC_TARGET_PLATFORM == CC_PLATFORM_IOS)\n" +
                             "           CrashReport::reportException(CATEGORY_JS_EXCEPTION,  \"JSException\", message, stack);\n" +
                             "        #endif\n";
 
                         if (data.indexOf(jsReportFlag) === -1) {
-                            data = data.replace("setExceptionCallback([](const char* location, const char* message, const char* stack){\n" +
+                            data = data.replace("setExceptionCallback([](const char *location, const char *message, const char *stack) {\n" +
                                 "        // Send exception information to server like Tencent Bugly.\n", jsReportFlag);
                             window.plugin._addLog("[AppDelegate.cpp] 添加bugly ExceptionCallback code");
                         } else {
